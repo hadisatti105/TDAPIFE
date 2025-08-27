@@ -16,16 +16,30 @@ $state       = $_POST['state'] ?? '';
 $zip         = $_POST['zip'] ?? '';
 $tcpa_opt_in = isset($_POST['tcpa_opt_in']) ? true : false;
 
-// STEP 1: PING request
-$ping_url = "https://kp-consulting-services-and-products.trackdrive.com/api/v1/inbound_webhooks/ping/check_for_available_buyers_on_fe_transfer?trackdrive_number=" . urlencode($trackdrive_number) . "&traffic_source_id=" . urlencode($traffic_source_id);
+// STEP 1: PING request (must include caller_id!)
+$ping_url = "https://kp-consulting-services-and-products.trackdrive.com/api/v1/inbound_webhooks/ping/check_for_available_buyers_on_fe_transfer";
 
-$ping_response = file_get_contents($ping_url);
+$ping_fields = [
+    "trackdrive_number" => $trackdrive_number,
+    "traffic_source_id" => $traffic_source_id,
+    "caller_id"         => $caller_id
+];
+
+$ch = curl_init($ping_url);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($ping_fields));
+
+$ping_response = curl_exec($ch);
+curl_close($ch);
+
 $ping_data = json_decode($ping_response, true);
 
+// Check if ping was successful
 if (!$ping_data || !$ping_data['success']) {
     echo json_encode([
         "success" => false,
-        "message" => "No buyer available. Please try again later.",
+        "message" => "Ping failed: No buyer available or caller_id missing.",
         "ping_response" => $ping_data
     ], JSON_PRETTY_PRINT);
     exit;
@@ -60,14 +74,14 @@ $post_fields = [
     "tcpa_opt_in"       => $tcpa_opt_in
 ];
 
-// Use cURL for POST
+// Send POST
 $ch = curl_init($post_url);
-curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post_fields));
 
 $response = curl_exec($ch);
 curl_close($ch);
 
-// Return JSON response
+// Return TrackDrive's response
 echo $response;
